@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Computing API - Circuit Designer, QAOA & VQE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/css/style.css">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Quantum Simulator</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="tab-button active" onclick="showTab('circuit')">Circuit Designer</button>
+                <button class="tab-button" onclick="showTab('qaoa')">QAOA optimization</button>
+                <button class="tab-button" onclick="showTab('vqe')">VQE Ground state</button>
+                <button class="tab-button" onclick="showTab('algorithms')">Quantum Algorithm</button>
+            </nav>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-workspace">
+
+        <!-- Circuit Designer Tab -->
+        <div id="circuit-tab" class="tab-content active">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="numQubits">Number of Qubits:</label>
+                    <input type="number" id="numQubits" min="1" max="10" value="2">
+                </div>
+                <div class="control-group">
+                    <label for="circuitDepth">Circuit Depth:</label>
+                    <input type="number" id="circuitDepth" min="1" max="20" value="10">
+                </div>
+                <div class="control-group">
+                    <label for="measurementShots">Measurement Shots:</label>
+                    <input type="number" id="measurementShots" min="1" max="10000" value="1000">
+                </div>
+                <button class="btn btn-primary" onclick="updateCircuit()">Update Circuit</button>
+                <button class="btn btn-success" onclick="executeCircuit()">Execute Circuit</button>
+                <button class="btn btn-danger" onclick="clearCircuit()">Clear All</button>
+            </div>
+
+            <div class="workspace-middle">
+                <!-- Gate Palette -->
+                <div class="gate-palette">
+                    <h3>🔧 Gate Palette</h3>
+                    
+                    <div class="gate-category">
+                        <h4>Single Qubit Gates</h4>
+                        <div class="gate-item" draggable="true" data-gate="X" data-tooltip="Pauli-X: Quantum NOT gate (flips |0⟩ ↔ |1⟩)">X</div>
+                        <div class="gate-item" draggable="true" data-gate="Y" data-tooltip="Pauli-Y: Phase and bit flip">Y</div>
+                        <div class="gate-item" draggable="true" data-gate="Z" data-tooltip="Pauli-Z: Phase flip (flips phase of |1⟩)">Z</div>
+                        <div class="gate-item" draggable="true" data-gate="H" data-tooltip="Hadamard: Creates equal superposition">H</div>
+                        <div class="gate-item" draggable="true" data-gate="S" data-tooltip="S Gate: 90° phase shift">S</div>
+                        <div class="gate-item" draggable="true" data-gate="T" data-tooltip="T Gate: 45° phase shift">T</div>
+                    </div>
+
+                    <div class="gate-category">
+                        <h4>Rotation Gates</h4>
+                        <div class="gate-item rotation" draggable="true" data-gate="RX" data-tooltip="RX: Rotation around X-axis">RX</div>
+                        <div class="gate-item rotation" draggable="true" data-gate="RY" data-tooltip="RY: Rotation around Y-axis">RY</div>
+                        <div class="gate-item rotation" draggable="true" data-gate="RZ" data-tooltip="RZ: Rotation around Z-axis">RZ</div>
+                    </div>
+
+                    <div class="gate-category">
+                        <h4>Two Qubit Gates</h4>
+                        <div class="gate-item two-qubit" draggable="true" data-gate="CNOT" data-tooltip="CNOT: Flips target if control is |1⟩">CNOT</div>
+                        <div class="gate-item two-qubit" draggable="true" data-gate="CZ" data-tooltip="CZ: Flips phase if both are |1⟩">CZ</div>
+                    </div>
+                </div>
+
+                <!-- Circuit Canvas -->
+                <div class="circuit-canvas">
+                    <div class="circuit-grid" id="circuitGrid">
+                        <!-- Circuit will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="results-panel">
+                    <h3>📊 Results</h3>
+                    
+                    <div class="state-display">
+                        <h4>Current State:</h4>
+                        <div id="currentState">|00⟩</div>
+                    </div>
+
+                    <div class="measurement-results">
+                        <h4>Measurement Probabilities:</h4>
+                        <div id="measurementProbabilities"></div>
+                    </div>
+
+                    <div class="measurement-histogram" id="measurementHistogram" style="display: none;">
+                        <h4>Measurement Results:</h4>
+                        <div id="histogramBars"></div>
+                    </div>
+
+                    <div class="bloch-spheres" id="blochSpheresDisplay" style="display: none; margin-top: 20px;">
+                        <h4>Bloch Spheres:</h4>
+                        <div id="blochSpheresImages" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; background: rgba(0, 0, 0, 0.2); padding: 15px; border-radius: 8px; border: 1px solid var(--panel-border);"></div>
+                    </div>
+
+                    <div class="python-code-display" id="pythonCodeDisplay" style="display: none; margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0;">Python Code:</h4>
+                            <button class="btn btn-primary btn-sm" onclick="copyPythonCode()" style="padding: 5px 10px; font-size: 12px;">Copy Code</button>
+                        </div>
+                        <pre style="background: #282c34; color: #abb2bf; padding: 15px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 14px; margin: 0;"><code id="pythonCodeContent"></code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QAOA Tab -->
+        <div id="qaoa-tab" class="tab-content">
+            <div class="control-section">
+                <h3>🔍 QAOA - Quantum Approximate Optimization Algorithm</h3>
+                <p>Solve combinatorial optimization problems like Max-Cut using quantum approximate optimization.</p>
+                
+                <div class="control-group">
+                    <label for="qaoaQubits">Number of Qubits (Vertices):</label>
+                    <input type="number" id="qaoaQubits" min="2" max="8" value="4">
+                </div>
+                
+                <div class="control-group">
+                    <label for="qaoaLayers">QAOA Layers (p):</label>
+                    <input type="number" id="qaoaLayers" min="1" max="10" value="2">
+                </div>
+                
+                <div class="control-group">
+                    <label for="qaoaShots">Measurement Shots:</label>
+                    <input type="number" id="qaoaShots" min="100" max="10000" value="1000">
+                </div>
+                
+                <div class="control-group">
+                    <label for="mixerType">Mixer Type:</label>
+                    <select id="mixerType">
+                        <option value="standard">Standard (X mixer)</option>
+                        <option value="xy">XY Mixer</option>
+                        <option value="ring">Ring Mixer</option>
+                        <option value="asymmetric">Asymmetric Mixer</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="useWarmStart"> Use Classical Warm Start
+                    </label>
+                </div>
+                
+                <div class="control-group">
+                    <label for="graphEdges">Graph Edges (JSON format):</label>
+                    <textarea id="graphEdges" rows="4" placeholder='[[0,1], [1,2], [2,3], [3,0], [0,2]]'>[[0,1], [1,2], [2,3], [3,0], [0,2]]</textarea>
+                    <small>Format: [[source, target], ...] - Define edges of your graph</small>
+                </div>
+                
+                <button class="btn btn-success action-button" onclick="runQAOA()">🚀 Run QAOA</button>
+                <button class="btn btn-primary action-button" onclick="generateRandomGraph()">🎲 Generate Random Graph</button>
+                
+                <div class="result-display" id="qaoaResults" style="display: none;">
+                    <h4>QAOA Results:</h4>
+                    <div id="qaoaResultContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VQE Tab -->
+        <div id="vqe-tab" class="tab-content">
+            <div class="control-section">
+                <h3>⚡ VQE - Variational Quantum Eigensolver</h3>
+                <p>Find the ground state energy of quantum systems using variational quantum algorithms.</p>
+                
+                <div class="control-group">
+                    <label for="vqeQubits">Number of Qubits:</label>
+                    <input type="number" id="vqeQubits" min="1" max="8" value="2">
+                </div>
+                
+                <div class="control-group">
+                    <label for="ansatzDepth">Ansatz Depth:</label>
+                    <input type="number" id="ansatzDepth" min="1" max="5" value="2">
+                </div>
+                
+                <div class="control-group">
+                    <label for="vqeShots">Measurement Shots:</label>
+                    <input type="number" id="vqeShots" min="100" max="10000" value="1000">
+                </div>
+                
+                <div class="control-group">
+                    <label for="hamiltonianTerms">Hamiltonian Terms (JSON format):</label>
+                    <textarea id="hamiltonianTerms" rows="6" placeholder='[{"pauli_ops": ["Z", "Z"], "coefficient": -0.5, "qubits": [0, 1]}]'>[
+  {"pauli_ops": ["Z"], "coefficient": -1.0, "qubits": [0]},
+  {"pauli_ops": ["Z"], "coefficient": -1.0, "qubits": [1]},
+  {"pauli_ops": ["Z", "Z"], "coefficient": -0.5, "qubits": [0, 1]}
+]</textarea>
+                    <small>Format: [{"pauli_ops": ["Z", "Z"], "coefficient": -0.5, "qubits": [0, 1]}, ...]</small>
+                </div>
+                
+                <button class="btn btn-success action-button" onclick="runVQE()">🚀 Run VQE</button>
+                <button class="btn btn-primary action-button" onclick="loadPresetHamiltonian()">📋 Load Preset Hamiltonian</button>
+                
+                <div class="result-display" id="vqeResults" style="display: none;">
+                    <h4>VQE Results:</h4>
+                    <div id="vqeResultContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quantum Algorithms Tab -->
+        <div id="algorithms-tab" class="tab-content">
+            <div class="control-section">
+                <h3>🧮 Classical Quantum Algorithms</h3>
+                
+                <!-- Grover's Algorithm -->
+                <div class="algorithm-card">
+                    <h4>🔍 Grover's Search Algorithm</h4>
+                    <p>Search unsorted databases quadratically faster than classical algorithms.</p>
+                    
+                    <div class="control-group">
+                        <label for="groverArray">Search Array (JSON):</label>
+                        <input type="text" id="groverArray" value='["apple", "banana", "cherry", "date", "elderberry"]'>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="groverTarget">Target Value:</label>
+                        <input type="text" id="groverTarget" value="cherry">
+                    </div>
+                    
+                    <button class="btn btn-success action-button" onclick="runGrover()">🚀 Run Grover Search</button>
+                </div>
+                
+                <!-- Shor's Algorithm -->
+                <div class="algorithm-card">
+                    <h4>🔢 Shor's Factoring Algorithm</h4>
+                    <p>Factor integers exponentially faster than classical methods.</p>
+                    
+                    <div class="control-group">
+                        <label for="shorN">Number to Factor:</label>
+                        <input type="number" id="shorN" min="4" max="21" value="15">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="shorCountingQubits">Counting Qubits:</label>
+                        <input type="number" id="shorCountingQubits" min="3" max="8" value="4">
+                    </div>
+                    
+                    <button class="btn btn-success action-button" onclick="runShor()">🚀 Run Shor's Algorithm</button>
+                </div>
+                
+                <!-- QFT -->
+                <div class="algorithm-card">
+                    <h4>📊 Quantum Fourier Transform</h4>
+                    <p>Perform quantum Fourier transforms for quantum algorithms.</p>
+                    
+                    <div class="control-group">
+                        <label for="qftQubits">Number of Qubits:</label>
+                        <input type="number" id="qftQubits" min="1" max="6" value="3">
+                    </div>
+                    
+                    <button class="btn btn-success action-button" onclick="runQFT()">🚀 Run QFT</button>
+                </div>
+                
+                <div class="result-display" id="algorithmResults" style="display: none;">
+                    <h4>Algorithm Results:</h4>
+                    <div id="algorithmResultContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Status -->
+        <div class="control-section">
+            <h3>📋 Job Status</h3>
+            <div id="jobStatus"></div>
+            <button class="btn btn-primary" onclick="refreshJobs()">🔄 Refresh Jobs</button>
+            <button class="btn btn-danger" onclick="cleanupJobs()">🧹 Cleanup Finished Jobs</button>
+        </div>
+        <!-- Messages -->
+        <div id="messages"></div>
+        </main>
+    </div>
+
+    <!-- Popups (keeping your existing ones) -->
+    <div id="rotationPopup" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); min-width: 300px;">
+            <h3 style="margin-top: 0; color: #555;">Rotation Gate Angle</h3>
+            <label style="display: block; margin: 10px 0 5px; font-weight: 600; color: #555;">Enter angle in radians:</label>
+            <input type="number" id="rotationAngle" step="0.01" value="1.57" placeholder="π/2 ≈ 1.57" style="width: 100%; padding: 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-primary" onclick="confirmRotation()">Apply</button>
+                <button class="btn btn-danger" onclick="cancelRotation()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="twoQubitPopup" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); min-width: 300px;">
+            <h3 style="margin-top: 0; color: #555;">Two-Qubit Gate Target</h3>
+            <label style="display: block; margin: 10px 0 5px; font-weight: 600; color: #555;">Select target qubit:</label>
+            <select id="targetQubit" style="width: 100%; padding: 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 15px;"></select>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-primary" onclick="confirmTwoQubit()">Apply</button>
+                <button class="btn btn-danger" onclick="cancelTwoQubit()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript files in the correct order -->
+    <script src="static/js/main.js"></script>
+    <script src="static/js/circuit.js"></script>
+    <script src="static/js/qaoa.js"></script>
+    <script src="static/js/vqe.js"></script>
+    <script src="static/js/algorithms.js"></script>
+</body>
+</html>
